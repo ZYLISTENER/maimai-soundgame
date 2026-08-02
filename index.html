@@ -142,6 +142,8 @@ body {
 .card-grid.easy { grid-template-columns: repeat(4, 1fr); }
 .card-grid.medium { grid-template-columns: repeat(4, 1fr); }
 .card-grid.hard { grid-template-columns: repeat(6, 1fr); }
+.card-grid.hard .card-wrapper { aspect-ratio: auto; }
+.card-grid.hard .card-inner { aspect-ratio: 16/10; }
 
 .card-wrapper {
   aspect-ratio: 1;
@@ -233,9 +235,8 @@ body {
 /* 遮罩 */
 .overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-  background: rgba(0,0,0,0.7); z-index: 100;
+  background: rgba(0,0,0,0.8); z-index: 100;
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(5px);
   animation: fadeIn 0.3s ease;
 }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -352,8 +353,20 @@ body {
 }
 .loading-overlay .loading-text {
   color: #d4a830; font-size: 18px; font-weight: 600;
-  letter-spacing: 3px; margin-bottom: 10px;
+  letter-spacing: 3px; margin-bottom: 16px;
   animation: loadPulse 1.5s ease-in-out infinite;
+}
+.loading-progress-bar {
+  width: 200px; height: 4px;
+  background: rgba(255,255,255,0.1);
+  border-radius: 2px; overflow: hidden;
+  margin-bottom: 12px;
+}
+.loading-progress-fill {
+  width: 0%; height: 100%;
+  background: linear-gradient(90deg, #d4a830, #f0d060);
+  border-radius: 2px;
+  transition: width 0.3s ease;
 }
 .loading-overlay .loading-dots {
   display: flex; gap: 8px;
@@ -447,7 +460,7 @@ body {
 <button class="btn-mute" id="btnMute" style="display:none;" onclick="toggleMute()">闭嘴</button>
 
 <!-- 版本号 -->
-<div class="version-tag" id="versionTag">v1.3</div>
+<div class="version-tag" id="versionTag">v1.4</div>
 
 <!-- 爆炸视频（用于获取原始比例） -->
 <video id="boomVid" src="videos/vid.webm" muted playsinline webkit-playsinline preload="auto" style="display:none;"></video>
@@ -455,6 +468,7 @@ body {
 <!-- 加载界面 -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-text">滴蜡熊祈祷中</div>
+  <div class="loading-progress-bar"><div class="loading-progress-fill" id="loadProgress"></div></div>
   <div class="loading-dots">
     <div class="loading-dot"></div>
     <div class="loading-dot"></div>
@@ -685,7 +699,7 @@ function playBoomVideo(wrapperA, wrapperB) {
     canvas.width = w;
     canvas.height = h;
     canvas.style.cssText = `
-      position: fixed; z-index: 9999; pointer-events: none;
+      position: fixed; z-index: 99999; pointer-events: none;
       left: ${rect.left + rect.width / 2 - w / 2}px;
       top: ${rect.top + rect.height / 2 - h / 2}px;
       width: ${w}px; height: ${h}px;
@@ -797,6 +811,8 @@ async function startGame() {
 
   // 显示加载界面
   document.getElementById('loadingOverlay').style.display = 'flex';
+  const progressBar = document.getElementById('loadProgress');
+  progressBar.style.width = '0%';
 
   if (AVAILABLE_IDS.length < GAME.pairs) {
     document.getElementById('loadingOverlay').style.display = 'none';
@@ -815,10 +831,18 @@ async function startGame() {
   GAME.lastPlayedId = null;
   stopCurrentAudio();
 
-  const selectedIds = AVAILABLE_IDS.slice(0, GAME.pairs);
+  // 从可用ID中随机抽选
+  const shuffled = [...AVAILABLE_IDS].sort(() => Math.random() - 0.5);
+  const selectedIds = shuffled.slice(0, GAME.pairs);
 
-  // 并行预加载所有音频
-  await Promise.all(selectedIds.map(id => preloadAudio(id)));
+  // 并行预加载所有音频，带进度条
+  let loadedCount = 0;
+  const totalToLoad = selectedIds.length;
+  await Promise.all(selectedIds.map(async (id) => {
+    await preloadAudio(id);
+    loadedCount++;
+    progressBar.style.width = Math.round(loadedCount / totalToLoad * 100) + '%';
+  }));
 
   let cards = [];
   selectedIds.forEach(id => {
