@@ -447,7 +447,7 @@ body {
 <button class="btn-mute" id="btnMute" style="display:none;" onclick="toggleMute()">闭嘴</button>
 
 <!-- 版本号 -->
-<div class="version-tag" id="versionTag">v1.2</div>
+<div class="version-tag" id="versionTag">v1.3</div>
 
 <!-- 爆炸视频（用于获取原始比例） -->
 <video id="boomVid" src="videos/vid.webm" muted playsinline webkit-playsinline preload="auto" style="display:none;"></video>
@@ -703,22 +703,24 @@ function playBoomVideo(wrapperA, wrapperB) {
     });
 
     function drawFrame() {
-      if (stopped || video.paused || video.ended) {
+      if (stopped || video.ended) {
         canvas.remove();
         video.remove();
         return;
       }
-      ctx.clearRect(0, 0, w, h);
-      ctx.drawImage(video, 0, 0, w, h);
-      // 滤黑底
-      const imageData = ctx.getImageData(0, 0, w, h);
-      const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        if (d[i] < 30 && d[i+1] < 30 && d[i+2] < 30) {
-          d[i+3] = 0;
+      // 即使video暂停也继续画最后一帧，直到ended或超时
+      if (!video.paused) {
+        ctx.clearRect(0, 0, w, h);
+        ctx.drawImage(video, 0, 0, w, h);
+        const imageData = ctx.getImageData(0, 0, w, h);
+        const d = imageData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i] < 25 && d[i+1] < 25 && d[i+2] < 25) {
+            d[i+3] = 0;
+          }
         }
+        ctx.putImageData(imageData, 0, 0);
       }
-      ctx.putImageData(imageData, 0, 0);
       requestAnimationFrame(drawFrame);
     }
 
@@ -1066,7 +1068,7 @@ async function init() {
   createParticles();
   await scanResources();
   selectDifficulty('easy');
-  openStartModal();
+  // 不自动弹窗，显示主界面
 }
 
 init();
