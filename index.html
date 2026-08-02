@@ -439,8 +439,8 @@ body {
 <button class="btn-mute" id="btnMute" style="display:none;" onclick="toggleMute()">闭嘴</button>
 
 <!-- 爆炸视频 -->
-<video id="boomVid1" src="videos/vid.webm" muted style="display:none; position:fixed; z-index:9999; pointer-events:none; object-fit:contain;"></video>
-<video id="boomVid2" src="videos/vid.webm" muted style="display:none; position:fixed; z-index:9999; pointer-events:none; object-fit:contain;"></video>
+<video id="boomVid1" src="videos/vid.webm" muted playsinline webkit-playsinline style="display:none; position:fixed; z-index:9999; pointer-events:none; object-fit:contain;"></video>
+<video id="boomVid2" src="videos/vid.webm" muted playsinline webkit-playsinline style="display:none; position:fixed; z-index:9999; pointer-events:none; object-fit:contain;"></video>
 
 <!-- 加载界面 -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -666,8 +666,13 @@ function playBoomVideo(wrapperA, wrapperB) {
     v.style.width = (r.width * 3) + 'px';
     v.style.height = (r.height * 3) + 'px';
     v.currentTime = 0;
-    v.muted = false;
-    v.play().catch(() => {});
+    v.setAttribute('playsinline', '');
+    v.setAttribute('webkit-playsinline', '');
+    // 移动端先静音播放，再尝试取消静音
+    v.muted = true;
+    v.play().then(() => {
+      v.muted = false;
+    }).catch(() => {});
   });
 
   // 播完隐藏
