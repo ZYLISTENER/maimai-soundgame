@@ -447,11 +447,12 @@ body {
 <button class="btn-mute" id="btnMute" style="display:none;" onclick="toggleMute()">闭嘴</button>
 
 <!-- 版本号 -->
-<div class="version-tag" id="versionTag">v1.0</div>
+<div class="version-tag" id="versionTag">v1.1</div>
 
-<!-- 爆炸视频 -->
-<video id="boomVid1" src="videos/vid.webm" muted playsinline webkit-playsinline style="display:none; position:fixed; z-index:9999; pointer-events:none; object-fit:contain;"></video>
-<video id="boomVid2" src="videos/vid.webm" muted playsinline webkit-playsinline style="display:none; position:fixed; z-index:9999; pointer-events:none; object-fit:contain;"></video>
+<!-- 爆炸视频（隐藏，用于Canvas渲染） -->
+<video id="boomVid" src="videos/vid.webm" muted playsinline webkit-playsinline preload="auto" style="display:none;"></video>
+<canvas id="boomCanvas1" style="display:none; position:fixed; z-index:9999; pointer-events:none;"></canvas>
+<canvas id="boomCanvas2" style="display:none; position:fixed; z-index:9999; pointer-events:none;"></canvas>
 
 <!-- 加载界面 -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -662,35 +663,70 @@ function playAudioPreview(id) {
   playAudioLoop(id);
 }
 
-// 播放爆炸视频（配对成功时在两卡片上叠加透明视频）
+// 播放爆炸视频（Canvas渲染，滤黑底实现透明效果）
+let boomAnimId = null;
 function playBoomVideo(wrapperA, wrapperB) {
-  const rectA = wrapperA.getBoundingClientRect();
-  const rectB = wrapperB.getBoundingClientRect();
+  const video = document.getElementById('boomVid');
+  const c1 = document.getElementById('boomCanvas1');
+  const c2 = document.getElementById('boomCanvas2');
+  const ctx1 = c1.getContext('2d');
+  const ctx2 = c2.getContext('2d');
 
-  const v1 = document.getElementById('boomVid1');
-  const v2 = document.getElementById('boomVid2');
+  // 停止之前的动画
+  if (boomAnimId) cancelAnimationFrame(boomAnimId);
 
-  [ {v: v1, r: rectA}, {v: v2, r: rectB} ].forEach(({v, r}) => {
-    v.style.display = 'block';
-    v.style.left = (r.left + r.width / 2 - r.width * 1.5) + 'px';
-    v.style.top = (r.top + r.height / 2 - r.height * 1.5) + 'px';
-    v.style.width = (r.width * 3) + 'px';
-    v.style.height = (r.height * 3) + 'px';
-    v.currentTime = 0;
-    v.setAttribute('playsinline', '');
-    v.setAttribute('webkit-playsinline', '');
-    // 移动端先静音播放，再尝试取消静音
-    v.muted = true;
-    v.play().then(() => {
-      v.muted = false;
-    }).catch(() => {});
-  });
+  function positionCanvases() {
+    const rectA = wrapperA.getBoundingClientRect();
+    const rectB = wrapperB.getBoundingClientRect();
+    const size = rectA.width * 3;
+    [c1, c2].forEach(c => { c.width = size; c.height = size; });
+    c1.style.width = c2.style.width = size + 'px';
+    c1.style.height = c2.style.height = size + 'px';
+    c1.style.left = (rectA.left + rectA.width / 2 - size / 2) + 'px';
+    c1.style.top = (rectA.top + rectA.height / 2 - size / 2) + 'px';
+    c2.style.left = (rectB.left + rectB.width / 2 - size / 2) + 'px';
+    c2.style.top = (rectB.top + rectB.height / 2 - size / 2) + 'px';
+  }
 
-  // 播完隐藏
+  positionCanvases();
+  c1.style.display = 'block';
+  c2.style.display = 'block';
+
+  video.currentTime = 0;
+  video.muted = true;
+  video.play().then(() => { video.muted = false; }).catch(() => {});
+
+  function drawFrame() {
+    if (video.paused || video.ended) {
+      c1.style.display = 'none';
+      c2.style.display = 'none';
+      return;
+    }
+    // 把视频帧画到两个canvas上
+    [ctx1, ctx2].forEach(ctx => {
+      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+      ctx.drawImage(video, 0, 0, ctx.canvas.width, ctx.canvas.height);
+      // 滤黑底：把接近黑色的像素变透明
+      const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        // 如果RGB都很暗（接近黑色），设为全透明
+        if (d[i] < 30 && d[i+1] < 30 && d[i+2] < 30) {
+          d[i+3] = 0;
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+    });
+    boomAnimId = requestAnimationFrame(drawFrame);
+  }
+
+  drawFrame();
+
+  // 超时兜底
   setTimeout(() => {
-    v1.style.display = 'none';
-    v2.style.display = 'none';
-    try { v1.pause(); v2.pause(); } catch {}
+    c1.style.display = 'none';
+    c2.style.display = 'none';
+    try { video.pause(); } catch {}
   }, 5000);
 }
 
