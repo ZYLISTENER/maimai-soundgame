@@ -763,10 +763,8 @@ async function startGame() {
 
   const selectedIds = AVAILABLE_IDS.slice(0, GAME.pairs);
 
-  // 预加载音频
-  for (const id of selectedIds) {
-    await preloadAudio(id);
-  }
+  // 并行预加载所有音频
+  await Promise.all(selectedIds.map(id => preloadAudio(id)));
 
   let cards = [];
   selectedIds.forEach(id => {
