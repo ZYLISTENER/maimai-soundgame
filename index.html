@@ -141,9 +141,7 @@ body {
 #cardGridStandalone { display: none; }
 .card-grid.easy { grid-template-columns: repeat(4, 1fr); }
 .card-grid.medium { grid-template-columns: repeat(4, 1fr); }
-.card-grid.hard { grid-template-columns: repeat(6, 1fr); }
-.card-grid.hard .card-wrapper { aspect-ratio: auto; }
-.card-grid.hard .card-inner { aspect-ratio: 16/10; }
+.card-grid.hard .card-wrapper { aspect-ratio: 1; }
 
 .card-wrapper {
   aspect-ratio: 1;
@@ -460,7 +458,7 @@ body {
 <button class="btn-mute" id="btnMute" style="display:none;" onclick="toggleMute()">闭嘴</button>
 
 <!-- 版本号 -->
-<div class="version-tag" id="versionTag">v1.4</div>
+<div class="version-tag" id="versionTag">v1.5</div>
 
 <!-- 爆炸视频（用于获取原始比例） -->
 <video id="boomVid" src="videos/vid.webm" muted playsinline webkit-playsinline preload="auto" style="display:none;"></video>
@@ -477,7 +475,7 @@ body {
 </div>
 
 <!-- 开始弹窗 -->
-<div class="overlay" id="startOverlay">
+<div class="overlay" id="startOverlay" style="display:none;">
   <div class="modal">
     <h2>翻牌记忆</h2>
     <p class="subtitle">翻开卡片，找到配对的图片和音频</p>
@@ -833,7 +831,26 @@ async function startGame() {
 
   // 从可用ID中随机抽选
   const shuffled = [...AVAILABLE_IDS].sort(() => Math.random() - 0.5);
-  const selectedIds = shuffled.slice(0, GAME.pairs);
+
+  // 计算最接近正方形的行列数（总卡片数 = 对数*2）
+  const totalCards = GAME.pairs * 2;
+  let bestCols = 1, bestRows = totalCards;
+  let bestDiff = Infinity;
+  for (let cols = 2; cols <= Math.ceil(Math.sqrt(totalCards)) + 2; cols++) {
+    const rows = Math.ceil(totalCards / cols);
+    if (rows * cols >= totalCards) {
+      const diff = Math.abs(cols - rows);
+      if (diff < bestDiff) {
+        bestDiff = diff;
+        bestCols = cols;
+        bestRows = rows;
+      }
+    }
+  }
+  // 实际使用的卡片数 = 行列乘积（丢弃多余的）
+  const usedCards = bestCols * bestRows;
+  const usedPairs = Math.floor(usedCards / 2);
+  const selectedIds = shuffled.slice(0, usedPairs);
 
   // 并行预加载所有音频，带进度条
   let loadedCount = 0;
@@ -858,8 +875,13 @@ async function startGame() {
   document.getElementById('gameMain').style.display = 'flex';
   document.getElementById('cardGridStandalone').style.display = 'none';
 
+  // 更新实际使用的对数
+  GAME.pairs = selectedIds.length;
+  document.getElementById('totalPairs').textContent = GAME.pairs;
+
   const grid = document.getElementById('cardGrid');
   grid.className = 'card-grid ' + GAME.difficulty;
+  grid.style.gridTemplateColumns = `repeat(${bestCols}, 1fr)`;
   grid.innerHTML = '';
   cards.forEach((card, index) => {
     const wrapper = document.createElement('div');
