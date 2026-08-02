@@ -447,12 +447,10 @@ body {
 <button class="btn-mute" id="btnMute" style="display:none;" onclick="toggleMute()">闭嘴</button>
 
 <!-- 版本号 -->
-<div class="version-tag" id="versionTag">v1.1</div>
+<div class="version-tag" id="versionTag">v1.2</div>
 
-<!-- 爆炸视频（隐藏，用于Canvas渲染） -->
+<!-- 爆炸视频（用于获取原始比例） -->
 <video id="boomVid" src="videos/vid.webm" muted playsinline webkit-playsinline preload="auto" style="display:none;"></video>
-<canvas id="boomCanvas1" style="display:none; position:fixed; z-index:9999; pointer-events:none;"></canvas>
-<canvas id="boomCanvas2" style="display:none; position:fixed; z-index:9999; pointer-events:none;"></canvas>
 
 <!-- 加载界面 -->
 <div class="loading-overlay" id="loadingOverlay">
@@ -663,71 +661,73 @@ function playAudioPreview(id) {
   playAudioLoop(id);
 }
 
-// 播放爆炸视频（Canvas渲染，滤黑底实现透明效果）
-let boomAnimId = null;
+// 播放爆炸视频（每个爆炸独立video+canvas，保持原始比例，滤黑底透明）
 function playBoomVideo(wrapperA, wrapperB) {
-  const video = document.getElementById('boomVid');
-  const c1 = document.getElementById('boomCanvas1');
-  const c2 = document.getElementById('boomCanvas2');
-  const ctx1 = c1.getContext('2d');
-  const ctx2 = c2.getContext('2d');
+  const rectA = wrapperA.getBoundingClientRect();
+  const rectB = wrapperB.getBoundingClientRect();
+  const srcVideo = document.getElementById('boomVid');
+  const videoRatio = srcVideo.videoWidth / srcVideo.videoHeight || 16/9;
 
-  // 停止之前的动画
-  if (boomAnimId) cancelAnimationFrame(boomAnimId);
+  [rectA, rectB].forEach(rect => {
+    // 以卡片3倍宽为基准，高度按视频比例
+    const w = rect.width * 3;
+    const h = w / videoRatio;
 
-  function positionCanvases() {
-    const rectA = wrapperA.getBoundingClientRect();
-    const rectB = wrapperB.getBoundingClientRect();
-    const size = rectA.width * 3;
-    [c1, c2].forEach(c => { c.width = size; c.height = size; });
-    c1.style.width = c2.style.width = size + 'px';
-    c1.style.height = c2.style.height = size + 'px';
-    c1.style.left = (rectA.left + rectA.width / 2 - size / 2) + 'px';
-    c1.style.top = (rectA.top + rectA.height / 2 - size / 2) + 'px';
-    c2.style.left = (rectB.left + rectB.width / 2 - size / 2) + 'px';
-    c2.style.top = (rectB.top + rectB.height / 2 - size / 2) + 'px';
-  }
+    const video = document.createElement('video');
+    video.src = 'videos/vid.webm';
+    video.muted = true;
+    video.playsInline = true;
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
+    video.style.display = 'none';
 
-  positionCanvases();
-  c1.style.display = 'block';
-  c2.style.display = 'block';
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    canvas.style.cssText = `
+      position: fixed; z-index: 9999; pointer-events: none;
+      left: ${rect.left + rect.width / 2 - w / 2}px;
+      top: ${rect.top + rect.height / 2 - h / 2}px;
+      width: ${w}px; height: ${h}px;
+    `;
 
-  video.currentTime = 0;
-  video.muted = true;
-  video.play().then(() => { video.muted = false; }).catch(() => {});
+    document.body.appendChild(video);
+    document.body.appendChild(canvas);
 
-  function drawFrame() {
-    if (video.paused || video.ended) {
-      c1.style.display = 'none';
-      c2.style.display = 'none';
-      return;
-    }
-    // 把视频帧画到两个canvas上
-    [ctx1, ctx2].forEach(ctx => {
-      ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-      ctx.drawImage(video, 0, 0, ctx.canvas.width, ctx.canvas.height);
-      // 滤黑底：把接近黑色的像素变透明
-      const imageData = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height);
+    const ctx = canvas.getContext('2d');
+    let stopped = false;
+
+    video.addEventListener('loadedmetadata', () => {
+      video.play().then(() => { video.muted = false; }).catch(() => {});
+      drawFrame();
+    });
+
+    function drawFrame() {
+      if (stopped || video.paused || video.ended) {
+        canvas.remove();
+        video.remove();
+        return;
+      }
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(video, 0, 0, w, h);
+      // 滤黑底
+      const imageData = ctx.getImageData(0, 0, w, h);
       const d = imageData.data;
       for (let i = 0; i < d.length; i += 4) {
-        // 如果RGB都很暗（接近黑色），设为全透明
         if (d[i] < 30 && d[i+1] < 30 && d[i+2] < 30) {
           d[i+3] = 0;
         }
       }
       ctx.putImageData(imageData, 0, 0);
-    });
-    boomAnimId = requestAnimationFrame(drawFrame);
-  }
+      requestAnimationFrame(drawFrame);
+    }
 
-  drawFrame();
+    video.addEventListener('ended', () => { stopped = true; });
+    video.addEventListener('error', () => { stopped = true; canvas.remove(); video.remove(); });
+    setTimeout(() => { stopped = true; canvas.remove(); video.remove(); }, 5000);
 
-  // 超时兜底
-  setTimeout(() => {
-    c1.style.display = 'none';
-    c2.style.display = 'none';
-    try { video.pause(); } catch {}
-  }, 5000);
+    video.load();
+  });
 }
 
 function getSfxVolume() {
