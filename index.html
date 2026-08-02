@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>翻牌记忆小游戏</title>
+<title>maimaigames</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -413,7 +413,7 @@ body {
 <div class="confetti-container" id="confettiContainer"></div>
 
 <div class="game-container">
-  <h1 class="title">舞萌代餐</h1>
+  <h1 class="title">检测你的舞萌记忆力</h1>
 
   <div class="control-bar">
     <button class="btn-start" onclick="openStartModal()">开始游戏</button>
@@ -717,6 +717,7 @@ function closeSettings() {
 }
 function closeResult() {
   stopCurrentAudio();
+  document.querySelector('.title').style.display = '';
   document.getElementById('btnMute').style.display = 'none';
   document.getElementById('resultOverlay').style.display = 'none';
   document.getElementById('statsBar').style.display = 'none';
@@ -777,6 +778,7 @@ async function startGame() {
     [cards[i], cards[j]] = [cards[j], cards[i]];
   }
 
+  document.querySelector('.title').style.display = 'none';
   document.getElementById('gameMain').style.display = 'flex';
   document.getElementById('cardGridStandalone').style.display = 'none';
 
@@ -927,6 +929,7 @@ function endGame() {
   GAME.running = false;
   GAME.lockBoard = true;
 
+  document.querySelector('.title').style.display = '';
   document.getElementById('btnMute').style.display = 'none';
   document.getElementById('statsBar').style.display = 'none';
   document.getElementById('gameMain').style.display = 'none';
